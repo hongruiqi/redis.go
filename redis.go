@@ -117,7 +117,6 @@ func (p *PipeLine) Exec() {
 }
 
 func (p *PipeLine) Serve() {
-Loop:
 	for {
 		p.mutex.Lock()
 		if p.running || len(p.pending) == 0 {
@@ -133,7 +132,7 @@ Loop:
 			err := p.enc.Encode(cmd.Cmd)
 			if err != nil {
 				cmd.ReplyChan <- &InvalidReply{err}
-				continue Loop
+				continue
 			}
 			waiting = append(waiting, cmd)
 		}
