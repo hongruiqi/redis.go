@@ -29,12 +29,12 @@ func DialPipeLine(address string) (*PipeLine, error) {
 
 func (p *PipeLine) Go(cmd *Command) <-chan bool {
 	p.mutex.Lock()
-	if cmd.ReplyChan == nil {
-		cmd.ReplyChan = make(chan bool, 2)
+	if cmd.replyChan == nil {
+		cmd.replyChan = make(chan bool, 2)
 	}
 	p.cmds = append(p.cmds, cmd)
 	p.mutex.Unlock()
-	return cmd.ReplyChan
+	return cmd.replyChan
 }
 
 func (p *PipeLine) Discard() {
@@ -67,7 +67,7 @@ func (p *PipeLine) Serve() {
 			err := p.enc.Encode(cmd.Cmd)
 			if err != nil {
 				cmd.Error = err
-				cmd.ReplyChan <- false
+				cmd.replyChan <- false
 				continue
 			}
 			waiting = append(waiting, cmd)
@@ -76,10 +76,10 @@ func (p *PipeLine) Serve() {
 			reply, err := p.dec.Decode()
 			if err != nil {
 				cmd.Error = err
-				cmd.ReplyChan <- false
+				cmd.replyChan <- false
 			} else {
 				cmd.Reply = reply
-				cmd.ReplyChan <- true
+				cmd.replyChan <- true
 			}
 		}
 	}

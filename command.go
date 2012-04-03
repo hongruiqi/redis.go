@@ -1,8 +1,10 @@
 package redis
 
+type Cmd []interface{}
+
 type Command struct {
-	Cmd       []interface{}
-	ReplyChan chan bool
+	Cmd       Cmd
+	replyChan chan bool
 	Reply     Reply
 	Error     error
 }

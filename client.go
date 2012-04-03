@@ -34,13 +34,13 @@ func (c *Client) Execute(cmd *Command) (ok bool) {
 
 func (c *Client) Go(cmd *Command) <-chan bool {
 	c.mutex.Lock()
-	if cmd.ReplyChan == nil {
-		cmd.ReplyChan = make(chan bool, 2) // buffered
+	if cmd.replyChan == nil {
+		cmd.replyChan = make(chan bool, 2) // buffered
 	}
 	c.pending = append(c.pending, cmd)
 	c.mutex.Unlock()
 	go c.Serve()
-	return cmd.ReplyChan
+	return cmd.replyChan
 }
 
 func (c *Client) Serve() {
@@ -57,15 +57,15 @@ func (c *Client) Serve() {
 		err := c.enc.Encode(cmd.Cmd)
 		if err != nil {
 			cmd.Error = err
-			cmd.ReplyChan <- false
+			cmd.replyChan <- false
 		}
 		reply, err := c.dec.Decode()
 		if err != nil {
 			cmd.Error = err
-			cmd.ReplyChan <- false
+			cmd.replyChan <- false
 		} else {
 			cmd.Reply = reply
-			cmd.ReplyChan <- true
+			cmd.replyChan <- true
 		}
 	}
 	c.mutex.Lock()
