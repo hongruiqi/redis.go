@@ -26,16 +26,16 @@ func Dial(address string) (*Client, error) {
 	return &Client{conn: conn, enc: NewEncoder(conn), dec: NewDecoder(conn)}, nil
 }
 
-func (c *Client) Execute(cmd *Command) Reply {
+func (c *Client) Execute(cmd *Command) (ok bool) {
 	replyChan := c.Go(cmd)
-	reply := <-replyChan
-	return reply
+	ok = <-replyChan
+	return
 }
 
-func (c *Client) Go(cmd *Command) <-chan Reply {
+func (c *Client) Go(cmd *Command) <-chan bool {
 	c.mutex.Lock()
 	if cmd.ReplyChan == nil {
-		cmd.ReplyChan = make(chan Reply, 2) // buffered
+		cmd.ReplyChan = make(chan bool, 2) // buffered
 	}
 	c.pending = append(c.pending, cmd)
 	c.mutex.Unlock()
@@ -56,13 +56,16 @@ func (c *Client) Serve() {
 		c.mutex.Unlock()
 		err := c.enc.Encode(cmd.Cmd)
 		if err != nil {
-			cmd.ReplyChan <- &InvalidReply{err}
+			cmd.Error = err
+			cmd.ReplyChan <- false
 		}
 		reply, err := c.dec.Decode()
 		if err != nil {
-			cmd.ReplyChan <- &InvalidReply{err}
+			cmd.Error = err
+			cmd.ReplyChan <- false
 		} else {
-			cmd.ReplyChan <- reply
+			cmd.Reply = reply
+			cmd.ReplyChan <- true
 		}
 	}
 	c.mutex.Lock()
@@ -92,10 +95,10 @@ func DialPipeLine(address string) (*PipeLine, error) {
 	return &PipeLine{conn: conn, enc: NewEncoder(conn), dec: NewDecoder(conn)}, nil
 }
 
-func (p *PipeLine) Go(cmd *Command) <-chan Reply {
+func (p *PipeLine) Go(cmd *Command) <-chan bool {
 	p.mutex.Lock()
 	if cmd.ReplyChan == nil {
-		cmd.ReplyChan = make(chan Reply, 2)
+		cmd.ReplyChan = make(chan bool, 2)
 	}
 	p.cmds = append(p.cmds, cmd)
 	p.mutex.Unlock()
@@ -131,7 +134,8 @@ func (p *PipeLine) Serve() {
 		for _, cmd := range cmds {
 			err := p.enc.Encode(cmd.Cmd)
 			if err != nil {
-				cmd.ReplyChan <- &InvalidReply{err}
+				cmd.Error = err
+				cmd.ReplyChan <- false
 				continue
 			}
 			waiting = append(waiting, cmd)
@@ -139,12 +143,15 @@ func (p *PipeLine) Serve() {
 		for _, cmd := range waiting {
 			reply, err := p.dec.Decode()
 			if err != nil {
-				cmd.ReplyChan <- &InvalidReply{err}
+				cmd.Error = err
+				cmd.ReplyChan <- false
 			} else {
-				cmd.ReplyChan <- reply
+				cmd.Reply = reply
+				cmd.ReplyChan <- true
 			}
 		}
 	}
+	p.mutex.Lock()
 	p.running = false
 	p.mutex.Unlock()
 }

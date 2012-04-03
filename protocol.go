@@ -11,7 +11,9 @@ import (
 
 type Command struct {
 	Cmd       []interface{}
-	ReplyChan chan Reply
+	ReplyChan chan bool
+	Reply     Reply
+	Error     error
 }
 
 type Commands []*Command
